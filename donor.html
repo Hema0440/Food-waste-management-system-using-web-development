@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Donor Registration Form</title>
+  <style>
+    body {
+      background-color: #f4f4f4;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      width: 400px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    h2 {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    input, select, button {
+      width: 100%;
+      padding: 8px;
+      margin-top: 5px;
+    }
+    button {
+      margin-top: 15px;
+      background: #4CAF50;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #45a049;
+    }
+    .terms {
+      margin-top: 10px;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    #message {
+      display: none;
+      text-align: center;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h2 id="formTitle">Donor Registration Form</h2>
+
+    <form id="donorForm">
+      <label>Name:</label>
+      <input type="text" id="name" required />
+
+      <label>Phone Number:</label>
+      <input type="text" id="phone" required />
+
+      <button type="button" onclick="sendOTP()">Send Code</button>
+
+      <label>Enter Code:</label>
+      <input type="text" id="otp" required />
+
+      <label>Current Date & Time:</label>
+      <input type="text" id="currentTime" readonly />
+
+      <label>Event Date & Time:</label>
+      <input type="datetime-local" id="eventDateTime" required onchange="validateDateTime()" />
+
+      <label>Reason for Donation:</label>
+      <select id="reason" required>
+        <option value="">Select</option>
+        <option value="Fresh Food">Fresh Food</option>
+        <option value="Leftover Food">Leftover Food</option>
+      </select>
+
+      <label>Food Details:</label>
+      <input type="text" id="foodDetails" required />
+
+      <div class="terms">
+        <input type="checkbox" id="terms" onclick="redirectToTerms()" />
+        I will be the one who face consequences if food is spoiled
+      </div>
+
+      <div id="locationSection" style="display: none;">
+        <label>Enter Your Location:</label>
+        <input type="text" id="location" required oninput="suggestOrphanage()" />
+
+        <label>Nearby Orphanage:</label>
+        <input type="text" id="orphanage" readonly />
+      </div>
+
+      <button type="button" id="confirmBtn" style="display: none;" onclick="submitForm()">Confirm & Register</button>
+    </form>
+
+    <div id="message"></div>
+  </div>
+
+  <script>
+    let sessionId = "";
+
+    window.onload = function () {
+      const now = new Date();
+      document.getElementById("currentTime").value = now.toLocaleString();
+
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("agreed") === "true") {
+        document.getElementById("locationSection").style.display = "block";
+      }
+    };
+
+    function sendOTP() {
+      const phone = document.getElementById("phone").value;
+      if (phone.length != 10) {
+        alert("Enter Valid 10-digit Mobile Number");
+        return;
+      }
+
+      fetch(`https://2factor.in/API/V1/2a0e1aa8-15fa-11f0-8b17-0200cd936042/SMS/${phone}/AUTOGEN`)
+        .then((response) => response.json())
+        .then((data) => {
+          if (data.Status == "Success") {
+            sessionId = data.Details;
+            alert("CODE Sent Successfully");
+          } else {
+            alert("Error Sending CODE");
+          }
+        });
+    }
+
+    function validateDateTime() {
+      const current = new Date();
+      const eventInput = document.getElementById("eventDateTime").value;
+      if (!eventInput) return;
+
+      const eventDateTime = new Date(eventInput);
+      const diffMs = current - eventDateTime;
+      const diffHours = diffMs / (1000 * 60 * 60);
+
+      if (diffHours > 0 && diffHours <= 8) {
+        console.log("✅ Eligible: Event is in the past and within 8 hours.");
+      } else {
+        alert("⛔ You are not eligible to donate. The event should be in the past and within the last 8 hours.");
+        window.location.href = "index.html";
+      }
+    }
+
+    function redirectToTerms() {
+      const termsCheckbox = document.getElementById("terms");
+
+      if (termsCheckbox.checked) {
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            (position) => {
+              const latitude = position.coords.latitude;
+              const longitude = position.coords.longitude;
+
+              console.log("Latitude:", latitude);
+              console.log("Longitude:", longitude);
+
+              document.getElementById("location").value = `Lat: ${latitude}, Lon: ${longitude}`;
+              document.getElementById("locationSection").style.display = "block";
+              suggestOrphanage();
+            },
+            (error) => {
+              alert("Location access denied or unavailable.");
+              termsCheckbox.checked = false;
+            }
+          );
+        } else {
+          alert("Geolocation is not supported by this browser.");
+          termsCheckbox.checked = false;
+        }
+      } else {
+        document.getElementById("locationSection").style.display = "none";
+      }
+    }
+
+    function suggestOrphanage() {
+      const location = document.getElementById("location").value.toLowerCase();
+      let orphanage = "";
+
+      if (location.includes("hyderabad")) {
+        orphanage = "Hope Orphanage - Hyderabad";
+      } else if (location.includes("secunderabad")) {
+        orphanage = "Care Home - Secunderabad";
+      } else {
+        orphanage = "Helping Hands Orphanage - Nearby";
+      }
+
+      document.getElementById("orphanage").value = orphanage;
+      document.getElementById("confirmBtn").style.display = "block";
+    }
+
+    function submitForm() {
+      const otp = document.getElementById("otp").value;
+      if (otp.length != 6) {
+        alert("Enter Valid CODE");
+        return;
+      }
+
+      fetch(`https://2factor.in/API/V1/2a0e1aa8-15fa-11f0-8b17-0200cd936042/SMS/VERIFY/${sessionId}/${otp}`)
+        .then((response) => response.json())
+        .then((data) => {
+          if (data.Status == "Success") {
+            document.getElementById("donorForm").style.display = "none";
+            document.getElementById("formTitle").style.display = "none";
+            document.getElementById("message").style.display = "block";
+            document.getElementById("message").innerHTML = `
+              <h3>🎉 Registration & Donation Successful! 🎉</h3>
+              <p>Thank you for your valuable contribution!</p>
+            `;
+          } else {
+            alert("Incorrect CODE");
+          }
+        });
+    }
+  </script>
+</body>
+</html>
+
+
+
